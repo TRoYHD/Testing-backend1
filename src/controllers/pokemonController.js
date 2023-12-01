@@ -1,49 +1,52 @@
 import pokemonService from "../services/pokemonService.js"
 
-let cachedData = null;
+let cachedData = [];
 let lastFetchTime = null;
 export let addedpokemons = []
 
-const getAllPokemon = async (req, res) => {
+export const getAllPokemon = async (req, res) => {
     const now = new Date();
-
-    const page = parseInt(req.query.page) || 1; // Default to page 1 if not provided
+    let page = parseInt(req.query.page) || 1;
     const sortOrder = req.query.sortorder; // Accesses 'sortOrder' query parameter
     const search = req.query.search;
-    const limit = req.query.limit
+    // const limit = req.query.limit
 
-          console.log(sortOrder);
-    // Check if data needs refreshing
-    if (!lastFetchTime || now - lastFetchTime > 24 * 60 * 60 * 1000) { // 24 hours
+    if (!lastFetchTime || now - lastFetchTime > 24 * 60 * 60 * 1000) { // 24 hours // 60*1000 1 min
         console.log("Fetching Data");
 
         try {
             // Fetch new data and update the cache
             cachedData = await pokemonService.getPokemonData();
             lastFetchTime = now;
+            updateCache()
         } catch (error) {
             console.error('Error in Pokemon controller:', error);
             return res.status(500).json({ error: 'Internal Server Error' });
         }
-    } // Return the cached data
-
-   
+    }
     
-    res.json(paginateData(sortPokemonsByName(searchPokemons(cachedData ,search),sortOrder),page,limit));
+    res.json(paginateData(sortPokemonsByName(searchPokemons(cachedData ,search),sortOrder),page,25));
 };
     
     function sortPokemonsByName(pokemons, sortOrder = 'asc') {
     return pokemons.sort((a, b) => {
-        // Normalize names to lowercase for case-insensitive comparison
-        let nameA = a.name.toLowerCase();
-        let nameB = b.name.toLowerCase();
+        try{
+            let nameA = a.name && typeof a.name === 'string' ? a.name.toLowerCase() : '';
+            let nameB = b.name && typeof b.name === 'string' ? b.name.toLowerCase() : '';
 
-        if (nameA < nameB) {
-            return sortOrder === 'asc' ? -1 : 1;
+
+            if (nameA < nameB) {
+                return sortOrder === 'asc' ? -1 : 1;
+            }
+            if (nameA > nameB) {
+                return sortOrder === 'desc' ? -1 : 1;
+            }
         }
-        if (nameA > nameB) {
-            return sortOrder === 'desc' ? -1 : 1;
+        catch (error){
+            console.log(error)
         }
+        // Normalize names to lowercase for case-insensitive comparison
+
 
         
         return 0;
@@ -66,26 +69,17 @@ function searchPokemons(pokemons, searchString) {
         pokemon.name.toLowerCase().includes(searchString.toLowerCase())
     );
 }
- export function updateCache() {
-    console.log(addedpokemons);
-     cachedData = [...cachedData, ...addedpokemons]
+export function updateCache() {
+    const flattened = addedpokemons.flat(2); // Adjust the depth level as needed
+
+    try {
+        const validAddedPokemons = flattened.filter(pokemon =>
+            pokemon && typeof pokemon === 'object' && 'name' in pokemon
+        );
+        cachedData = [...cachedData, ...validAddedPokemons];
+    } catch (error) {
+        console.log(error);
+    }
 }
 
-export function addPokemon (req, res){
-    console.log(1);
-    const newPokemon = req.body; // Assuming the new Pokémon's data is sent in the request body
-    console.log(2);
-    // Add the new Pokémon to your dataset
-    addedpokemons.push(newPokemon);
-    ;
 
-    // Update your cache with the new list
-    // Assuming you have a function to update the cache
-    updateCache(pokemons);
-    
-
-    res.status(201).send('New Pokémon added');     
-
-  }
-
-export default getAllPokemon;
